@@ -42,6 +42,15 @@ async def create_chat_folder(dialog):
 
 # Getting media data, including stickers
 def get_media_info(media):
+    # For webpages
+    if isinstance(media, types.MessageMediaWebPage):
+        return {
+            "type": "webpage",
+            "url": media.webpage.url if media.webpage else None,
+            "title": media.webpage.title if media.webpage else None
+        }
+
+    # For Stickers
     if isinstance(media, types.MessageMediaDocument) and media.document:
         for attr in media.document.attributes:
             # For stickers
@@ -86,8 +95,26 @@ def get_media_info(media):
             "mime_type": media.document.mime_type,
             "size": media.document.size
         }
+
+    # For Geolocation
+    if isinstance(media, types.MessageMediaGeo):
+        return {
+            "type": "geo",
+            "lat": media.geo.lat,
+            "long": media.geo.long
+        }
     
+    # For Contacts
+    if isinstance(media, types.MessageMediaContact):
+        return {
+            "type": "contact",
+            "phone": media.phone_number,
+            "name": f"{media.first_name} {media.last_name}"
+        }
+
+
     return {"type": "unknown"}
+
 
 # Choosing whether to save media
 media_allowed = False
@@ -269,10 +296,11 @@ async def save_messages(chat_entity, folder_path):
                 "out": message.out
             }
             
-            # Getting sticker info
+            # If there's media
             if message.media:
                 media_info = get_media_info(message.media)
 
+                 # Adding sticker info and emoji in json
                 if media_info.get("type") == "sticker":
                     emoji = media_info.get("emoji", "")
                     if msg_data["text"]:
@@ -280,8 +308,13 @@ async def save_messages(chat_entity, folder_path):
                     else:
                         msg_data["text"] = f"[Sticker: {emoji}]"
 
-                # Saving media if user choose to save it
-                if media_allowed and media_path:
+                # Adding url links in json
+                if media_info.get("type") == "webpage":
+                    url = media_info.get("url", "")
+                    msg_data["text"] = f" [link: {url}]"
+
+                # Saving media files if user has selected to save it
+                if media_allowed and media_path and media_info["type"] in ["photo", "video", "document", "sticker"]:
                     try:
                         extension = ".bin"
                         
